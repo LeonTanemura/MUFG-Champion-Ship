@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import statistics as st
+import re
 
 
 train = pd.read_csv("datasets/train.csv")
@@ -25,8 +26,31 @@ missing_value_checker(test, "test")
 df = train_test
 print(df.info())
 
+def convert_time_string(time_str):
+    if isinstance(time_str, str):
+        pattern = r'(\d+)\s+days\s+(\d+):.*'
+        match = re.match(pattern, time_str)
+        if match:
+            days, hours = match.groups()
+            return f"{days}d{hours}h"
+    return "Invalid format"
+
+df['RetimeToReply'] = df['timeToReply'].astype(str).apply(convert_time_string)
+
+def convert_time_string_to_hours(time_str):
+    pattern = r'(\d+)d(\d+)h'
+    match = re.match(pattern, time_str)
+    if match:
+        days, hours = map(int, match.groups())
+        total_hours = days * 24 + hours
+        return total_hours
+    return 0
+
+# timeToReply列を時間に変換して新しい列に追加
+df['hoursToReply'] = df['RetimeToReply'].astype(str).apply(convert_time_string_to_hours)
+
 # 補完するターゲットの設定
-targets = []
+targets = ['reviewCreatedVersion']
 # mode(最頻値), mean(平均値), median(中央値)
 val_name = "mode"
 
@@ -44,15 +68,17 @@ for target in targets:
     train_test[target] = train_test[target].fillna(value)
 
 # 欠損値特徴量の削除
-targets = []
+targets = ['timeToReply', 'RetimeToReply']
 df = df.drop(targets, axis=1)
+
+missing_value_checker(df, "train_test")
 
 train_test = df
 
 # trainとtestに再分割
 train = train_test.iloc[:len(train)]
 test = train_test.iloc[len(train):]
-test = test.drop('', axis=1)
+test = test.drop('score', axis=1)
 
 print(train.info())
 print(test.info())
@@ -60,3 +86,7 @@ print(test.info())
 # csvファイルの作成
 train.to_csv('datasets/train_fix.csv', index=False)
 test.to_csv('datasets/test_fix.csv', index=False)
+
+# targets = ['review', 'replyContent']
+# train = train.drop(targets, axis=1)
+# train.to_csv('datasets/train_drop_str.csv', index=False)
