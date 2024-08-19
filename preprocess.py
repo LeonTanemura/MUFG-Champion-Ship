@@ -1,10 +1,68 @@
 import pandas as pd
 import numpy as np
 import statistics as st
+import re
 
 
+# train = pd.read_csv("datasets/train_embed3.csv")
+# test = pd.read_csv("datasets/test_embed3.csv")
 train = pd.read_csv("datasets/train.csv")
 test = pd.read_csv("datasets/test.csv")
+# train = pd.read_csv("datasets/train_fix9.csv")
+# test = pd.read_csv("datasets/test_fix9.csv")
+
+
+train2 = pd.read_csv("datasets/train_stacking_deberta_review_v2.csv")
+test2 = pd.read_csv("datasets/test_stacking_deberta_review_v2.csv")
+train3 = pd.read_csv("datasets/train_stacking_deberta_replyContent_v2.csv")
+test3 = pd.read_csv("datasets/test_stacking_deberta_replyContent_v2.csv")
+train4 = pd.read_csv("datasets/train_stacking_bert_review_v2.csv")
+test4 = pd.read_csv("datasets/test_stacking_bert_review_v2.csv")
+train5 = pd.read_csv("datasets/train_stacking_bert_replyContent_v2.csv")
+test5 = pd.read_csv("datasets/test_stacking_bert_replyContent_v2.csv")
+train6 = pd.read_csv("datasets/train_stacking_roberta_review_v2.csv")
+test6 = pd.read_csv("datasets/test_stacking_roberta_review_v2.csv")
+train7 = pd.read_csv("datasets/train_stacking_roberta_replyContent_v2.csv")
+test7 = pd.read_csv("datasets/test_stacking_roberta_replyContent_v2.csv")
+
+# train3 = pd.read_csv("datasets/train_stacking_deberta_replyContent_review_v2.csv")
+# test3 = pd.read_csv("datasets/test_stacking_deberta_replyContent_review_v2.csv")
+# train5 = pd.read_csv("datasets/train_stacking_bert_replyContent_review_v2.csv")
+# test5 = pd.read_csv("datasets/test_stacking_bert_replyContent_review_v2.csv")
+# train7 = pd.read_csv("datasets/train_stacking_roberta_replyContent_review_v2.csv")
+# test7 = pd.read_csv("datasets/test_stacking_roberta_replyContent_review_v2.csv")
+# train9 = pd.read_csv("datasets/train_stacking_distilbert_replyContent_review_v2.csv")
+# test9 = pd.read_csv("datasets/test_stacking_distilbert_replyContent_review_v2.csv")
+
+train8 = pd.read_csv("datasets/train_negaposi.csv")
+test8 = pd.read_csv("datasets/test_negaposi.csv")
+
+# train['deberta_replyContent_review_pred'] = train3['deberta_replyContent_review_pred']
+# test['deberta_replyContent_review_pred'] = test3['deberta_replyContent_review_pred']
+# train['bert_replyContent_review_pred'] = train5['bert_replyContent_review_pred']
+# test['bert_replyContent_review_pred'] = test5['bert_replyContent_review_pred']
+# train['roberta_replyContent_review_pred'] = train7['roberta_replyContent_review_pred']
+# test['roberta_replyContent_review_pred'] = test7['roberta_replyContent_review_pred']
+# train['distilbert_replyContent_review_pred'] = train9['distilbert_replyContent_review_pred']
+# test['distilbert_replyContent_review_pred'] = test9['distilbert_replyContent_review_pred']
+
+train['neg_score'] = train8['neg_score']
+test['neg_score'] = test8['neg_score']
+
+train['deberta_review_pred'] = train2['deberta_review_pred']
+test['deberta_review_pred'] = test2['deberta_review_pred']
+train['deberta_replyContent_pred'] = train3['deberta_replyContent_pred']
+test['deberta_replyContent_pred'] = test3['deberta_replyContent_pred']
+
+train['bert_review_pred'] = train4['bert_review_pred']
+test['bert_review_pred'] = test4['bert_review_pred']
+train['bert_replyContent_pred'] = train5['bert_replyContent_pred']
+test['bert_replyContent_pred'] = test5['bert_replyContent_pred']
+
+train['roberta_review_pred'] = train6['roberta_review_pred']
+test['roberta_review_pred'] = test6['roberta_review_pred']
+train['roberta_replyContent_pred'] = train7['roberta_replyContent_pred']
+test['roberta_replyContent_pred'] = test7['roberta_replyContent_pred']
 
 train_test = pd.concat([train, test])
 
@@ -25,8 +83,31 @@ missing_value_checker(test, "test")
 df = train_test
 print(df.info())
 
+def convert_time_string(time_str):
+    if isinstance(time_str, str):
+        pattern = r'(\d+)\s+days\s+(\d+):.*'
+        match = re.match(pattern, time_str)
+        if match:
+            days, hours = match.groups()
+            return f"{days}d{hours}h"
+    return "Invalid format"
+
+df['RetimeToReply'] = df['timeToReply'].astype(str).apply(convert_time_string)
+
+def convert_time_string_to_hours(time_str):
+    pattern = r'(\d+)d(\d+)h'
+    match = re.match(pattern, time_str)
+    if match:
+        days, hours = map(int, match.groups())
+        total_hours = days * 24 + hours
+        return total_hours
+    return 0
+
+# timeToReply列を時間に変換して新しい列に追加
+df['hoursToReply'] = df['RetimeToReply'].astype(str).apply(convert_time_string_to_hours)
+
 # 補完するターゲットの設定
-targets = []
+targets = ['reviewCreatedVersion']
 # mode(最頻値), mean(平均値), median(中央値)
 val_name = "mode"
 
@@ -44,19 +125,25 @@ for target in targets:
     train_test[target] = train_test[target].fillna(value)
 
 # 欠損値特徴量の削除
-targets = []
+targets = ['timeToReply', 'RetimeToReply']
 df = df.drop(targets, axis=1)
+
+missing_value_checker(df, "train_test")
 
 train_test = df
 
 # trainとtestに再分割
 train = train_test.iloc[:len(train)]
 test = train_test.iloc[len(train):]
-test = test.drop('', axis=1)
+test = test.drop('score', axis=1)
 
 print(train.info())
 print(test.info())
 
 # csvファイルの作成
-train.to_csv('datasets/train_fix.csv', index=False)
-test.to_csv('datasets/test_fix.csv', index=False)
+train.to_csv('datasets/train_fix16.csv', index=False)
+test.to_csv('datasets/test_fix16.csv', index=False)
+
+# targets = ['review', 'replyContent']
+# train = train.drop(targets, axis=1)
+# train.to_csv('datasets/train_drop_str.csv', index=False)

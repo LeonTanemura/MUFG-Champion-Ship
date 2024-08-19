@@ -30,15 +30,12 @@ def xgboost_config(trial: optuna.Trial, model_config, name=""):
 
 def lightgbm_config(trial: optuna.Trial, model_config, name=""):
     model_config.max_depth = trial.suggest_int("max_depth", 3, 10)
-    model_config.lambda_l1 = trial.suggest_float("lambda_l1", 1e-8, 10.0, log=True)
-    model_config.lambda_l2 = trial.suggest_float("lambda_l2", 1e-8, 10.0, log=True)
-    model_config.learning_rate = trial.suggest_float("learning_rate", 1e-5, 1.0, log=True)
+    model_config.learning_rate = trial.suggest_float("learning_rate", 1e-4, 1.0, log=True)
     model_config.num_leaves = trial.suggest_int("num_leaves", 2, 256, log=True)
-    model_config.feature_fraction = trial.suggest_float("feature_fraction", 0.4, 1.0)
-    model_config.bagging_fraction = trial.suggest_float("bagging_fraction", 0.4, 1.0)
-    model_config.bagging_freq = trial.suggest_int("bagging_freq", 1, 7)
-    model_config.min_child_samples = trial.suggest_int("min_child_samples", 5, 100, log=True)
-    model_config.min_data_in_leaf = trial.suggest_int("min_data_in_leaf", 5, 50, log=True)
+    model_config.colsample_bytree = trial.suggest_float("colsample_bytree", 0.1, 1.0)
+    model_config.reg_alpha = trial.suggest_float("reg_alpha", 1e-8, 1.0, log=True)
+    model_config.reg_lambda = trial.suggest_float("reg_lambda", 1e-8, 1.0, log=True)
+    model_config.n_estimators = trial.suggest_int("n_estimators", 100, 10000)
     return model_config
 
 
@@ -112,26 +109,18 @@ class OptimParam:
             X_val = self.val_data[self.columns]
             y_val = self.val_data[self.target_column].values.squeeze()
         
-        if self.task == "classifier":
-            model = get_classifier(
-                self.model_name,
-                input_dim=self.input_dim,
-                output_dim=self.output_dim,
-                model_config=model_config,
-                seed=self.seed,
-            )
-        elif self.task == "regressor":
-            model = get_regressor(
-                self.model_name,
-                input_dim=self.input_dim,
-                output_dim=self.output_dim,
-                model_config=model_config,
-                seed=self.seed,
-            )
+        model = get_regressor(
+            self.model_name,
+            input_dim=self.input_dim,
+            output_dim=self.output_dim,
+            model_config=model_config,
+            seed=self.seed,
+        )
         model.fit(
             X_train,
             y_train,
-            eval_set=(X_val, y_val),
+            # eval_set=(X_val, y_val),
+            eval_set=[(X_train, y_train), (X_val, y_val)],
         )
         score = model.evaluate(
             self.val_data[self.columns],
@@ -146,18 +135,12 @@ class OptimParam:
             X_train, y_train = self.X.iloc[train_idx], self.y[train_idx]
             X_val, y_val = self.X.iloc[val_idx], self.y[val_idx]
             score = self.fit(model_config, X_train, y_train, X_val, y_val)
-            if self.task == "classifier":
-                ave.append(score["ACC"])
-            elif self.task == "regressor":
-                ave.append(score["RMSE"])
+            ave.append(score["QWK"])
         return mean(ave)
 
     def one_shot(self, model_config):
         score = self.fit(model_config, self.X, self.y)
-        if self.task == "classifier":
-            return score["ACC"]
-        elif self.task == "regressor":
-            return score["RMSE"]
+        return score["QWK"]
 
     def objective(self, trial):
         _model_config = self.model_config(trial, deepcopy(self.default_config))
@@ -209,34 +192,22 @@ class OptimParam:
             self.storage = optuna.storages.RDBStorage(
                 url=f"sqlite:///{self.storage}/optuna.db",
             )
-        if self.task == "classifier":
-            study = optuna.create_study(
-                storage=self.storage,
-                study_name=self.study_name,
-                direction="maximize",
-                sampler=optuna.samplers.TPESampler(
-                    seed=self.seed,
-                    n_startup_trials=self.n_startup_trials,
-                ),
-                load_if_exists=True,
-            )
-        elif self.task == "regressor":
-            study = optuna.create_study(
-                storage=self.storage,
-                study_name=self.study_name,
-                direction="minimize",
-                sampler=optuna.samplers.TPESampler(
-                    seed=self.seed,
-                    n_startup_trials=self.n_startup_trials,
-                ),
-                load_if_exists=True,
-            )
+        study = optuna.create_study(
+            storage=self.storage,
+            study_name=self.study_name,
+            direction="maximize",
+            sampler=optuna.samplers.TPESampler(
+                seed=self.seed,
+                n_startup_trials=self.n_startup_trials,
+            ),
+            load_if_exists=True,
+        )
         n_complete = self.get_n_complete(study)
         n_trials = self.n_trials
         if n_complete > 0:
             n_trials -= n_complete
         study.optimize(self.objective, n_trials=n_trials, n_jobs=self.n_jobs)
-        self.plot_param_importances(study)
-        self.plot_optimization_history(study)
+        # self.plot_param_importances(study)
+        # self.plot_optimization_history(study)
         update_model_cofig(self.default_config, study.best_params)
         return self.default_config

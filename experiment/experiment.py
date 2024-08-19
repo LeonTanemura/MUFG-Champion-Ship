@@ -31,10 +31,8 @@ class ExpBase:
         self.data_config = config.data
 
         dataframe: TabularDataFrame = getattr(dataset, self.data_config.name)(seed=config.seed, **self.data_config)
-        dfs = dataframe.processed_dataframes()
-        self.categories_dict = dataframe.get_categories_dict()
-        self.train, self.test = dfs["train"], dfs["test"]
-        self.columns = dataframe.all_columns
+        self.train, self.test = dataframe.train, dataframe.test
+        self.columns = dataframe.selected_columns
         self.target_column = dataframe.target_column
         self.label_encoder = dataframe.label_encoder
 
@@ -47,21 +45,14 @@ class ExpBase:
         self.task = config.task
         self.init_writer()
 
+        self.a = 0,
+        self.b = 0,
+
     def init_writer(self):
-        if self.task == "classifier":
-            metrics = [
+        metrics = [
             "fold",
-            "F1",
-            "ACC",
-            "AUC",
-            ]
-        elif self.task == "regressor":
-            metrics = [
-                "fold",
-                "MSE",
-                "MAE",
-                "RMSE",
-            ]
+            "QWK",
+        ]
         self.writer = {m: [] for m in metrics}
 
     def add_results(self, i_fold, scores: dict, time):
@@ -75,29 +66,20 @@ class ExpBase:
         x, y = self.get_x_y(train_data)
 
         model_config = self.get_model_config(i_fold=i_fold, x=x, y=y, val_data=val_data)
-        if self.task == "classifier":
-            model = get_classifier(
-                self.model_name,
-                input_dim=self.input_dim,
-                output_dim=self.output_dim,
-                model_config=model_config,
-                verbose=self.exp_config.verbose,
-                seed=self.seed,
-            )
-        elif self.task == "regressor":
-            model = get_regressor(
-                self.model_name,
-                input_dim=self.input_dim,
-                output_dim=self.output_dim,
-                model_config=model_config,
-                verbose=self.exp_config.verbose,
-                seed=self.seed,
-            )
+    
+        model = get_regressor(
+            self.model_name,
+            input_dim=self.input_dim,
+            output_dim=self.output_dim,
+            model_config=model_config,
+            verbose=self.exp_config.verbose,
+            seed=self.seed,
+        )
         start = time()
         model.fit(
             x,
             y,
-            eval_set=(val_data[self.columns], val_data[self.target_column].values.squeeze()),
+            eval_set=[(x, y), (val_data[self.columns], val_data[self.target_column].values.squeeze())],
         )
         end = time() - start
         logger.info(f"[Fit {self.model_name}] Time: {end}")
@@ -105,9 +87,9 @@ class ExpBase:
 
     def run(self):
         skf = StratifiedKFold(n_splits=self.n_splits, shuffle=True, random_state=self.seed)
-        y_test_pred_all = []
         feature_importance_list = []
         score_all = []
+        models = []
         for i_fold, (train_idx, val_idx) in enumerate(skf.split(self.train, self.train[self.target_column])):
             if len(self.writer["fold"]) != 0 and self.writer["fold"][-1] >= i_fold:
                 logger.info(f"Skip {i_fold + 1} fold. Already finished.")
@@ -115,61 +97,44 @@ class ExpBase:
 
             train_data, val_data = self.train.iloc[train_idx], self.train.iloc[val_idx]
             model, time = self.each_fold(i_fold, train_data, val_data)
-
+            models.append(model)
             feature_importance_list.append(model.feature_importance())
 
-            if self.task == "classifier":
-                score = cal_metrics(model, val_data, self.columns, self.target_column)
-                score.update(model.evaluate(val_data[self.columns], val_data[self.target_column].values.squeeze()))
-                score_all.append(score)
-                logger.info(
-                    f"[{self.model_name} results ({i_fold+1} / {self.n_splits})] val/ACC: {score['ACC']:.4f} | val/AUC: {score['AUC']:.4f} | "
-                    f"val/F1: {score['F1']}"
-                )
-                self.add_results(i_fold, score, time)
-                y_test_pred_all.append(
-                    model.predict_proba(self.test[self.columns]).reshape(-1, 1, len(self.label_encoder.classes_))
-                )
-
-            elif self.task == "regressor":
-                score = cal_metrics_regression(model, val_data, self.columns, self.target_column)
-                score.update(model.evaluate(val_data[self.columns], val_data[self.target_column].values.squeeze()))
-                score_all.append(score)
-                logger.info(
-                    f"[{self.model_name} results ({i_fold+1} / {self.n_splits})] val/MSE: {score['MSE']:.4f} | val/MAE: {score['MAE']:.4f} |"
-                    f" val/RMSE: {score['RMSE']:.4f}"
-                )
-                self.add_results(i_fold, score, time)
-                y_test_pred_all.append(
-                    model.predict(self.test[self.columns])
-                )
+            score = cal_metrics_regression(model, val_data, self.columns, self.target_column)
+            score.update(model.evaluate(val_data[self.columns], val_data[self.target_column].values.squeeze()))
+            score_all.append(score)
+            logger.info(
+                f"[{self.model_name} results ({i_fold+1} / {self.n_splits})] val/MSE: {score['MSE']:.4f} | val/MAE: {score['MAE']:.4f} |"
+                f" val/RMSE: {score['RMSE']:.4f} | val/QWK: {score['QWK']:.4f}"
+            )
+            self.add_results(i_fold, score, time)
 
         final_score = Counter()
         for item in score_all:
             final_score.update(item)
 
-        if self.task == "classifier":
-            logger.info(
-                f"[{self.model_name} results] ACC: {(final_score['ACC']/self.n_splits)} | AUC: {(final_score['AUC']/self.n_splits)} | "
-                f"F1: {(final_score['F1']/self.n_splits)}"
+        logger.info(
+                f"[{self.model_name} results] MSE: {(final_score['MSE']/self.n_splits)} | MAE: {(final_score['MAE']/self.n_splits)} | "
+                f"RMSE: {(final_score['RMSE']/self.n_splits)} | QWK: {(final_score['QWK']/self.n_splits)}"
             )
-            # feature_importance(feature_importance_list, self.columns, self.model_name)
-            y_test_pred_all = np.argmax(np.concatenate(y_test_pred_all, axis=1).mean(axis=1), axis=1)
-        
-        elif self.task == "regressor":
-            logger.info(
-                    f"[{self.model_name} results] MSE: {(final_score['MSE']/self.n_splits)} | MAE: {(final_score['MAE']/self.n_splits)} | "
-                    f"RMSE: {(final_score['RMSE']/self.n_splits)}"
-                )
-            # feature_importance(feature_importance_list, self.columns, self.model_name)
-            y_test_pred_all = np.vstack(y_test_pred_all)
-            y_test_pred_all = np.mean(y_test_pred_all, axis=0)
+        # feature_importance(feature_importance_list, self.columns, self.model_name)
+        probabilities = []
+        for model in models:
+            proba= model.predict(self.test[self.columns])
+            proba += self.a  # 必要に応じて調整
+            print(proba)
+            probabilities.append(proba)
+
+        predictions = np.mean(probabilities, axis=0)
+        predictions = np.round(predictions.clip(0, 4)).astype(int)
+        print(predictions)
+
         submit_df = pd.DataFrame(self.id)
-        submit_df[""] = y_test_pred_all
+        submit_df["score"] = predictions
         print(submit_df)
         print(self.train.columns)
         self.train.to_csv("train_feature.csv", index=False)
-        submit_df.to_csv("submit.csv", index=False)
+        submit_df.to_csv("submission.csv", index=False, header=False)
 
     def get_model_config(self, *args, **kwargs):
         raise NotImplementedError()
