@@ -9,7 +9,7 @@ import random
 from typing import Dict, Union
 
 import numpy as np
-from sklearn.metrics import accuracy_score, roc_auc_score, mean_squared_error, mean_absolute_error
+from sklearn.metrics import accuracy_score, roc_auc_score, mean_squared_error, mean_absolute_error, cohen_kappa_score
 import matplotlib.pyplot as plt
 import pandas as pd
 
@@ -77,11 +77,19 @@ def cal_mae_score(model, data, feature_cols, label_col):
     mae = mean_absolute_error(data[label_col], pred)
     return mae
 
+def cal_qwk_score(model, data, feature_cols, label_col):
+    pred = model.predict(data[feature_cols])
+    pred = np.round(pred).astype(int)  # 予測値を離散化
+    qwk = cohen_kappa_score(data[label_col], pred, weights='quadratic')
+    return qwk
+
 def cal_metrics_regression(model, data, feature_cols, label_col):
     mse = cal_mse_score(model, data, feature_cols, label_col)
     mae = cal_mae_score(model, data, feature_cols, label_col)
     rmse = cal_rmse_score(model, data, feature_cols, label_col)
-    return {"MSE": mse, "MAE": mae, "RMSE": rmse}
+    qwk = cal_qwk_score(model, data, feature_cols, label_col)
+    # return {"QWK": qwk}
+    return {"MSE": mse, "MAE": mae, "RMSE": rmse, "QWK": qwk}
 
 def set_categories_in_rule(ruleset, categories_dict):
     ruleset.set_categories(categories_dict)
