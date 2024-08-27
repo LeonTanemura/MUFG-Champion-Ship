@@ -1,10 +1,32 @@
-max_depth: 6
-n_estimators: 10000
-eta: null
-min_child_weight: null
-subsample: null
+# max_depth: 6
+# n_estimators: 10000
+# eta: null
+# min_child_weight: null
+# subsample: null
+# colsample_bytree: null
+# colsample_bylevel: null
+# gamma: null
+# alpha: null
+# lambda: null
+
+# learning_rate: 0.1
+# max_depth: 8
+# colsample_bytree: 0.5
+# reg_alpha: 0.1
+# reg_lambda: 1.6
+# n_estimators: 1024
+# extra_trees: True
+# scale_pos_weight: 100
+# class_weight: 'balanced'
+# tree_method: "hist"
+
+learning_rate: null
+max_depth: null
 colsample_bytree: null
-colsample_bylevel: null
-gamma: null
-alpha: null
-lambda: null
+reg_alpha: null
+reg_lambda: null
+n_estimators: 10000
+# extra_trees: True
+scale_pos_weight: null
+# class_weight: 'balanced'
+tree_method: "hist"
