@@ -12,9 +12,10 @@ from dataset import TabularDataFrame
 from model import get_classifier, get_regressor
 
 from .optuna import OptimParam
-from .utils import cal_metrics, cal_metrics_regression, load_json, set_seed, feature_importance
+from .utils import cal_metrics, cal_metrics_regression, load_json, set_seed
 
 from collections import Counter
+import pickle
 
 logger = logging.getLogger(__name__)
 
@@ -42,8 +43,11 @@ class ExpBase:
         self.id = dataframe.id
 
         self.seed = config.seed
-        self.task = config.task
         self.init_writer()
+
+        self.save_model = config.save_model
+        self.save_predict = config.save_predict
+        self.existing_models = config.existing_models
 
         self.a = 0,
         self.b = 0,
@@ -87,8 +91,12 @@ class ExpBase:
 
     def run(self):
         skf = StratifiedKFold(n_splits=self.n_splits, shuffle=True, random_state=self.seed)
-        feature_importance_list = []
         score_all = []
+        if self.existing_models:
+            model_filename = "/home/leon/study/mydir/MUFG-Champion-Ship/outputs/single/main/V1/2024-08-27/13-24-13/lightgbm.pkl"
+            with open(model_filename, 'rb') as f:
+                ex_models = pickle.load(f)
+            ex_score_all = []
         models = []
         for i_fold, (train_idx, val_idx) in enumerate(skf.split(self.train, self.train[self.target_column])):
             if len(self.writer["fold"]) != 0 and self.writer["fold"][-1] >= i_fold:
@@ -98,7 +106,6 @@ class ExpBase:
             train_data, val_data = self.train.iloc[train_idx], self.train.iloc[val_idx]
             model, time = self.each_fold(i_fold, train_data, val_data)
             models.append(model)
-            feature_importance_list.append(model.feature_importance())
 
             score = cal_metrics_regression(model, val_data, self.columns, self.target_column)
             score.update(model.evaluate(val_data[self.columns], val_data[self.target_column].values.squeeze()))
@@ -109,6 +116,11 @@ class ExpBase:
             )
             self.add_results(i_fold, score, time)
 
+            if self.existing_models:
+                ex_score = cal_metrics_regression(ex_models[i_fold], val_data, self.columns, self.target_column)
+                ex_score.update(ex_models[i_fold].evaluate(val_data[self.columns], val_data[self.target_column].values.squeeze()))
+                ex_score_all.append(ex_score)
+
         final_score = Counter()
         for item in score_all:
             final_score.update(item)
@@ -117,7 +129,18 @@ class ExpBase:
                 f"[{self.model_name} results] MSE: {(final_score['MSE']/self.n_splits)} | MAE: {(final_score['MAE']/self.n_splits)} | "
                 f"RMSE: {(final_score['RMSE']/self.n_splits)} | QWK: {(final_score['QWK']/self.n_splits)}"
             )
-        # feature_importance(feature_importance_list, self.columns, self.model_name)
+
+        if self.existing_models:
+            for item in ex_score_all:
+                final_score.update(item)
+            self.n_splits = self.n_splits*2
+            logger.info(
+                    f"[ensemble results] MSE: {(final_score['MSE']/self.n_splits)} | MAE: {(final_score['MAE']/self.n_splits)} | "
+                    f"RMSE: {(final_score['RMSE']/self.n_splits)} | QWK: {(final_score['QWK']/self.n_splits)}"
+                )
+            for model in ex_models:
+                models.append(model)
+
         probabilities = []
         for model in models:
             proba= model.predict(self.test[self.columns])
@@ -126,6 +149,16 @@ class ExpBase:
             probabilities.append(proba)
 
         predictions = np.mean(probabilities, axis=0)
+
+        if self.save_predict:
+            pred = pd.DataFrame(predictions)
+            pred.to_csv(f"{self.model_name}_pred.csv", index=False)
+
+        if self.save_model:
+            model_filename = f"{self.model_name}.pkl"
+            with open(model_filename, 'wb') as f:
+                pickle.dump(models, f)
+
         predictions = np.round(predictions.clip(0, 4)).astype(int)
         print(predictions)
 
