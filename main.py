@@ -6,7 +6,8 @@ import hydra
 
 import experiment
 from experiment import ExpBase
-
+import warnings
+warnings.filterwarnings('ignore')
 logger = logging.getLogger(__name__)
 
 
