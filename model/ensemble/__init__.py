@@ -1,1 +1,1 @@
-from .xgb_lgbm import XGBLGBMClassifier, XGB10Classifier, XGB7LGBM7Classifier, XGBLRClassifier
+from .xgb_lgbm import XGBLGBMRegressor

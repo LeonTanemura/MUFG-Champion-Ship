@@ -88,7 +88,6 @@ def cal_metrics_regression(model, data, feature_cols, label_col):
     mae = cal_mae_score(model, data, feature_cols, label_col)
     rmse = cal_rmse_score(model, data, feature_cols, label_col)
     qwk = cal_qwk_score(model, data, feature_cols, label_col)
-    # return {"QWK": qwk}
     return {"MSE": mse, "MAE": mae, "RMSE": rmse, "QWK": qwk}
 
 def set_categories_in_rule(ruleset, categories_dict):
