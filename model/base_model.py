@@ -6,6 +6,7 @@ from sklearn.metrics import (
     roc_auc_score,
     mean_squared_error, 
     mean_absolute_error,
+    cohen_kappa_score,
 )
 import numpy as np
 
@@ -64,6 +65,9 @@ class BaseRegressor:
         results["MSE"] = mse
         results["MAE"] = mean_absolute_error(y, y_pred)
         results["RMSE"] = np.sqrt(mse)
+        y_pred_rounded = np.round(y_pred).astype(int)
+        y_rounded = np.round(y).astype(int)
+        results["QWK"] = cohen_kappa_score(y_rounded, y_pred_rounded, weights='quadratic')
         return results
 
     def feature_importance(self):

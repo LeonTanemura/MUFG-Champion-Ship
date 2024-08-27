@@ -18,14 +18,11 @@ logger = logging.getLogger(__name__)
 
 def xgboost_config(trial: optuna.Trial, model_config, name=""):
     model_config.max_depth = trial.suggest_int("max_depth", 3, 10)
-    model_config.eta = trial.suggest_float("eta", 1e-5, 1.0, log=True)
-    model_config.min_child_weight = trial.suggest_float("min_child_weight", 1e-8, 1e5, log=True)
-    model_config.subsample = trial.suggest_float("subsample", 0.5, 1.0)
-    model_config.colsample_bytree = trial.suggest_float("colsample_bytree", 0.5, 1.0)
-    model_config.colsample_bylevel = trial.suggest_float("colsample_bylevel", 0.5, 1.0)
-    model_config.gamma = trial.suggest_float("gamma", 1e-8, 1e2, log=True)
-    model_config.alpha = trial.suggest_float("alpha", 1e-8, 1e2, log=True)
-    model_config["lambda"] = trial.suggest_float("lambda", 1e-8, 1e2, log=True)
+    model_config.learning_rate = trial.suggest_float("learning_rate", 1e-4, 1.0, log=True)
+    model_config.colsample_bytree = trial.suggest_float("colsample_bytree", 0.1, 1.0)
+    model_config.reg_alpha = trial.suggest_float("reg_alpha", 1e-8, 1.0, log=True)
+    model_config.reg_lambda = trial.suggest_float("reg_lambda", 1e-8, 1.0, log=True)
+    model_config.n_estimators = trial.suggest_int("n_estimators", 100, 10000)
     return model_config
 
 def lightgbm_config(trial: optuna.Trial, model_config, name=""):
@@ -38,28 +35,60 @@ def lightgbm_config(trial: optuna.Trial, model_config, name=""):
     model_config.n_estimators = trial.suggest_int("n_estimators", 100, 10000)
     return model_config
 
+def xgblgbm_config(trial: optuna.Trial, model_config, name=""):
+    # XGBoostのパラメータ設定
+    model_config.xgboost.max_depth = trial.suggest_int("xgboost_max_depth", 3, 10)
+    model_config.xgboost.learning_rate = trial.suggest_float("xgboost_learning_rate", 1e-4, 1.0, log=True)
+    model_config.xgboost.colsample_bytree = trial.suggest_float("xgboost_colsample_bytree", 0.1, 1.0)
+    model_config.xgboost.reg_alpha = trial.suggest_float("xgboost_reg_alpha", 1e-8, 1.0, log=True)
+    model_config.xgboost.reg_lambda = trial.suggest_float("xgboost_reg_lambda", 1e-8, 1.0, log=True)
+    model_config.xgboost.n_estimators = trial.suggest_int("xgboost_n_estimators", 100, 10000)
+    
+    # LightGBMのパラメータ設定
+    model_config.lightgbm.max_depth = trial.suggest_int("lightgbm_max_depth", 3, 10)
+    model_config.lightgbm.learning_rate = trial.suggest_float("lightgbm_learning_rate", 1e-4, 1.0, log=True)
+    model_config.lightgbm.num_leaves = trial.suggest_int("lightgbm_num_leaves", 2, 256, log=True)
+    model_config.lightgbm.colsample_bytree = trial.suggest_float("lightgbm_colsample_bytree", 0.1, 1.0)
+    model_config.lightgbm.reg_alpha = trial.suggest_float("lightgbm_reg_alpha", 1e-8, 1.0, log=True)
+    model_config.lightgbm.reg_lambda = trial.suggest_float("lightgbm_reg_lambda", 1e-8, 1.0, log=True)
+    model_config.lightgbm.n_estimators = trial.suggest_int("lightgbm_n_estimators", 100, 10000)
+
+    return model_config
 
 def get_model_config(model_name):
     if model_name == "xgboost":
         return xgboost_config
     elif model_name == "lightgbm":
         return lightgbm_config
-    elif model_name == "xgblr":
-        return xgboost_config
+    elif model_name == "xgblgbm":
+        return xgblgbm_config
     else:
         raise ValueError()
 
-
-def update_model_cofig(default_config, best_config):
+def update_model_config(default_config, best_config):
     for _p, v in best_config.items():
-        current_dict = default_config
-        _p = _p.split(".")
-        for p in _p[:-1]:
-            if p not in current_dict:
-                current_dict[p] = {}
-            current_dict = current_dict[p]
-        last_key = _p[-1]
-        current_dict[last_key] = v
+        # モデル名を抽出
+        if _p.startswith("xgboost_"):
+            model_name = "xgboost"
+            param_name = _p[len("xgboost_"):]
+        elif _p.startswith("lightgbm_"):
+            model_name = "lightgbm"
+            param_name = _p[len("lightgbm_"):]
+        else:
+            # モデル名のプレフィックスがない場合、そのままキーを使用
+            model_name = None
+            param_name = _p
+
+        # default_configの該当モデルにアクセス
+        if model_name is None:
+            # モデル名が指定されていない場合（単独で回す場合）
+            if param_name in default_config:
+                default_config[param_name] = v
+        elif model_name in default_config:
+            # モデル名が指定されている場合
+            default_config[model_name][param_name] = v
+
+    return default_config
 
 
 class OptimParam:
@@ -153,38 +182,6 @@ class OptimParam:
     def get_n_complete(self, study: optuna.Study):
         n_complete = len([trial for trial in study.trials if trial.state == optuna.trial.TrialState.COMPLETE])
         return n_complete
-
-    def plot_param_importances(self, study, filename="param_importances.jpg"):
-        if os.path.exists(filename):
-            # 既存のファイルが存在する場合
-            fig = ov.plot_param_importances(study)
-            fig.write_image('temp.jpg')
-            existing_image = cv2.imread(filename)
-            new_image = cv2.imread('temp.jpg')
-            combined_image = cv2.vconcat([existing_image, new_image])
-            cv2.imwrite(filename, combined_image)
-            os.remove('temp.jpg')
-        else:
-            # 新しいファイルを作成する場合
-            fig = ov.plot_param_importances(study)
-            fig.write_image(filename)
-        del fig
-
-    def plot_optimization_history(self, study, filename="optimization_history.jpg"):
-        if os.path.exists(filename):
-            # 既存のファイルが存在する場合
-            fig = ov.plot_optimization_history(study)
-            fig.write_image('temp.jpg')
-            existing_image = cv2.imread(filename)
-            new_image = cv2.imread('temp.jpg')
-            combined_image = cv2.vconcat([existing_image, new_image])
-            cv2.imwrite(filename, combined_image)
-            os.remove('temp.jpg')
-        else:
-            # 新しいファイルを作成する場合
-            fig = ov.plot_optimization_history(study)
-            fig.write_image(filename)
-        del fig
     
     def get_best_config(self):
         if self.storage is not None:
@@ -207,7 +204,5 @@ class OptimParam:
         if n_complete > 0:
             n_trials -= n_complete
         study.optimize(self.objective, n_trials=n_trials, n_jobs=self.n_jobs)
-        # self.plot_param_importances(study)
-        # self.plot_optimization_history(study)
-        update_model_cofig(self.default_config, study.best_params)
+        update_model_config(self.default_config, study.best_params)
         return self.default_config
