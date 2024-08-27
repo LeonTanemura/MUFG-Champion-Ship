@@ -12,8 +12,10 @@ defaults:
   - exp: simple
 
 n_splits: 10
-metrics: ACC
+metrics: QWK
 
 seed: 42
 gpuid: 0
-task: classifier  # classifier または regressor
+save_model: True
+save_predict: True
+existing_models: True
