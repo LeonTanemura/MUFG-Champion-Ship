@@ -12,7 +12,7 @@ from dataset import TabularDataFrame
 from model import get_classifier, get_regressor
 
 from .optuna import OptimParam
-from .utils import cal_metrics, cal_metrics_regression, load_json, set_seed
+from .utils import cal_metrics, cal_metrics_regression, load_json, set_seed, plot_confusion_matrix, concatenate_images
 
 from collections import Counter
 import pickle
@@ -93,11 +93,15 @@ class ExpBase:
         skf = StratifiedKFold(n_splits=self.n_splits, shuffle=True, random_state=self.seed)
         score_all = []
         if self.existing_models:
-            model_filename = "/home/leon/study/mydir/MUFG-Champion-Ship/outputs/single/main/V1/2024-08-27/13-24-13/lightgbm.pkl"
+            model_filename = "/home/leon/study/mydir/MUFG-Champion-Ship/outputs/single/main/V2/2024-08-31/15-52-41/lightgbm.pkl"
             with open(model_filename, 'rb') as f:
-                ex_models = pickle.load(f)
+                ex_models1 = pickle.load(f)
+            model_filename = "/home/leon/study/mydir/MUFG-Champion-Ship/outputs/single/main/V2/2024-09-01/16-24-53/xgboost.pkl"
+            with open(model_filename, 'rb') as f:
+                ex_models2 = pickle.load(f)
             ex_score_all = []
         models = []
+        image_list = []
         for i_fold, (train_idx, val_idx) in enumerate(skf.split(self.train, self.train[self.target_column])):
             if len(self.writer["fold"]) != 0 and self.writer["fold"][-1] >= i_fold:
                 logger.info(f"Skip {i_fold + 1} fold. Already finished.")
@@ -116,10 +120,22 @@ class ExpBase:
             )
             self.add_results(i_fold, score, time)
 
+            # コンフュージョンマトリックスを計算してグラフを表示
+            x_val, y_val = self.get_x_y(val_data)
+            img = plot_confusion_matrix(model, x_val, y_val, i_fold)
+            image_list.append(img)
+
             if self.existing_models:
-                ex_score = cal_metrics_regression(ex_models[i_fold], val_data, self.columns, self.target_column)
-                ex_score.update(ex_models[i_fold].evaluate(val_data[self.columns], val_data[self.target_column].values.squeeze()))
+                ex_score = cal_metrics_regression(ex_models1[i_fold], val_data, self.columns, self.target_column)
+                ex_score.update(ex_models1[i_fold].evaluate(val_data[self.columns], val_data[self.target_column].values.squeeze()))
                 ex_score_all.append(ex_score)
+                ex_score = cal_metrics_regression(ex_models2[i_fold], val_data, self.columns, self.target_column)
+                ex_score.update(ex_models2[i_fold].evaluate(val_data[self.columns], val_data[self.target_column].values.squeeze()))
+                ex_score_all.append(ex_score)
+
+        concatenated_img = concatenate_images(image_list)
+        if concatenated_img:
+            concatenated_img.save('concatenated_confusion_matrices.png')
 
         final_score = Counter()
         for item in score_all:
@@ -133,12 +149,14 @@ class ExpBase:
         if self.existing_models:
             for item in ex_score_all:
                 final_score.update(item)
-            self.n_splits = self.n_splits*2
+            self.n_splits = self.n_splits*3
             logger.info(
                     f"[ensemble results] MSE: {(final_score['MSE']/self.n_splits)} | MAE: {(final_score['MAE']/self.n_splits)} | "
                     f"RMSE: {(final_score['RMSE']/self.n_splits)} | QWK: {(final_score['QWK']/self.n_splits)}"
                 )
-            for model in ex_models:
+            for model in ex_models1:
+                models.append(model)
+            for model in ex_models2:
                 models.append(model)
 
         probabilities = []
@@ -149,6 +167,10 @@ class ExpBase:
             probabilities.append(proba)
 
         predictions = np.mean(probabilities, axis=0)
+        logger.info(f"predictions: {predictions}")
+        thresholds=[0.65, 1.5, 2.5, 3.5]
+        predictions = pd.cut(predictions, [-np.inf] + thresholds + [np.inf], 
+                    labels=[0,1,2,3,4]).astype('int32')
 
         if self.save_predict:
             pred = pd.DataFrame(predictions)
@@ -166,7 +188,7 @@ class ExpBase:
         submit_df["score"] = predictions
         print(submit_df)
         print(self.train.columns)
-        self.train.to_csv("train_feature.csv", index=False)
+        # self.train.to_csv("train_feature.csv", index=False)
         submit_df.to_csv("submission.csv", index=False, header=False)
 
     def get_model_config(self, *args, **kwargs):
@@ -225,6 +247,5 @@ class ExpOptuna(ExpBase):
             cv=self.cv,
             n_jobs=self.n_jobs,
             seed=self.seed,
-            task = self.task
         )
         return op.get_best_config()

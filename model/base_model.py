@@ -9,6 +9,7 @@ from sklearn.metrics import (
     cohen_kappa_score,
 )
 import numpy as np
+import pandas as pd
 
 
 class BaseClassifier:
@@ -65,9 +66,16 @@ class BaseRegressor:
         results["MSE"] = mse
         results["MAE"] = mean_absolute_error(y, y_pred)
         results["RMSE"] = np.sqrt(mse)
-        y_pred_rounded = np.round(y_pred).astype(int)
-        y_rounded = np.round(y).astype(int)
-        results["QWK"] = cohen_kappa_score(y_rounded, y_pred_rounded, weights='quadratic')
+        # y_pred_rounded = np.round(y_pred).astype(int)
+        # y_rounded = np.round(y).astype(int)
+        # results["QWK"] = cohen_kappa_score(y_rounded, y_pred_rounded, weights='quadratic')
+        # 回帰モデルの予測値を整数ラベルに変換
+        thresholds=[0.65, 1.5, 2.5, 3.5]
+        pred_labels = pd.cut(y_pred, bins=[-np.inf] + thresholds + [np.inf], 
+                             labels=[0, 1, 2, 3, 4]).astype(int)
+        
+        true_labels = y.astype(int)
+        results["QWK"] = cohen_kappa_score(true_labels, pred_labels, weights='quadratic')
         return results
 
     def feature_importance(self):
