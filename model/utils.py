@@ -19,20 +19,19 @@ def binary_logloss(y_true, y_pred):
 
 def quadratic_weighted_kappa(y_true, y_pred):
     a = 0
-    b = 1
     if isinstance(y_pred, xgb.QuantileDMatrix):
         # XGB
         y_true, y_pred = y_pred, y_true
 
         y_true = (y_true.get_label() + a).round()
-        y_pred = (y_pred + a).clip(0, 5).round()
+        y_pred = (y_pred + a).clip(0, 4).round()
         qwk = cohen_kappa_score(y_true, y_pred, weights="quadratic")
         return 'QWK', qwk
 
     else:
         # For lgb
         y_true = y_true + a
-        y_pred = (y_pred + a).clip(0, 5).round()
+        y_pred = (y_pred + a).clip(0, 4).round()
         qwk = cohen_kappa_score(y_true, y_pred, weights="quadratic")
         return 'QWK', qwk, True
 
@@ -41,7 +40,7 @@ def qwk_obj(y_true, y_pred):
     b = 1
     labels = y_true + a
     preds = y_pred + a
-    preds = preds.clip(0, 5)
+    preds = preds.clip(0, 4)
     f = 1/2*np.sum((preds-labels)**2)
     g = 1/2*np.sum((preds-a)**2+b)
     df = preds - labels
@@ -49,4 +48,7 @@ def qwk_obj(y_true, y_pred):
     grad = (df/g - f*dg/g**2)*len(labels)
     hess = np.ones(len(labels))
     return grad, hess
+
+# a = 2.948
+# b = 1.092
 

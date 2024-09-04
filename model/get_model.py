@@ -1,6 +1,6 @@
 from experiment.utils import set_seed
 
-from .gbm import LightGBMClassifier, XGBoostClassifier, LightGBMRegressor, XGBoostRegressor
+from .gbm import LightGBMClassifier, XGBoostClassifier, LightGBMRegressor, XGBoostRegressor, CatBoostRegressor
 from .ensemble import XGBLGBMRegressor
 
 
@@ -19,6 +19,8 @@ def get_regressor(name, *, input_dim, output_dim, model_config, seed=42, verbose
         return XGBoostRegressor(input_dim, output_dim, model_config, verbose, seed)
     elif name == "lightgbm":
         return LightGBMRegressor(input_dim, output_dim, model_config, verbose, seed)
+    elif name == "catboost":
+        return CatBoostRegressor(input_dim, output_dim, model_config, verbose, seed)
     elif name == "xgblgbm":
         return XGBLGBMRegressor(input_dim, output_dim, model_config, verbose, seed)
     else:
