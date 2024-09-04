@@ -81,3 +81,12 @@ class V1(TabularDataFrame):
         self.test = pd.read_csv(to_absolute_path("datasets/test_fix15.csv"))
         print(self.train.info())
         self.selected_columns = list(filter(lambda x: x not in ['Unnamed: 0','review', 'score', 'replyContent'], self.train.columns))
+
+class V2(TabularDataFrame):
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.train = pd.read_csv(to_absolute_path("datasets/train_fix17.csv"))
+        self.test = pd.read_csv(to_absolute_path("datasets/test_fix17.csv"))
+        print(self.train.info())
+        self.selected_columns = list(filter(lambda x: x not in ['Unnamed: 0','review', 'score', 'replyContent'], self.train.columns))

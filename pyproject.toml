@@ -15,6 +15,8 @@ xgboost = "2.0.3"
 lightgbm = "^4.5.0"
 matplotlib = "^3.9.1"
 opencv-python = "^4.10.0.84"
+catboost = "^1.2.5"
+numpy = "^1.26.0"
 
 
 [build-system]

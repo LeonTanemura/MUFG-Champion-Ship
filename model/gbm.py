@@ -1,6 +1,7 @@
 import lightgbm as lgb
 import xgboost as xgb
 from lightgbm.callback import log_evaluation, early_stopping
+import catboost
 from sklearn.utils.validation import check_X_y
 import numpy as np
 import pandas as pd
@@ -121,3 +122,43 @@ class LightGBMRegressor(BaseRegressor):
         
     def feature_importance(self):
         return self.model.feature_importances_
+
+class CatBoostRegressor(BaseRegressor):
+    def __init__(self, input_dim, output_dim, model_config, verbose, seed=None) -> None:
+        super().__init__(input_dim, output_dim, model_config, verbose)
+        self.model = catboost.CatBoostRegressor(
+            loss_function=qwk_obj,  # QWKを目的関数として設定
+            random_seed=seed,
+            objective='RMSE',
+            eval_metric='RMSE',
+            **self.model_config,
+            verbose=0
+        )
+
+    def fit(self, X, y, eval_set):
+        self._column_names = X.columns
+        X, y = check_X_y(X, y)
+
+        # `Pool`オブジェクトにデータを分割して渡す
+        train_pool = catboost.Pool(X, y)
+        eval_pools = [catboost.Pool(X_val.values if isinstance(X_val, pd.DataFrame) else X_val, y_val) for X_val, y_val in eval_set]
+
+        self.model.fit(
+            train_pool,
+            eval_set=eval_pools,
+            use_best_model=True,
+            early_stopping_rounds=75,
+        )
+
+        # 最適なイテレーションを取得
+        best_iteration = self.model.get_best_iteration()
+        
+        # 最適なスコアを取得
+        best_score = self.model.get_best_score()
+
+        # 結果を表示
+        print(f"Best iteration: {best_iteration}")
+        print(f"Best score: {best_score}")
+
+    def feature_importance(self):
+        return self.model.get_feature_importance()
