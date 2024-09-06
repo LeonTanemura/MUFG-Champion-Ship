@@ -9,7 +9,7 @@ import pandas as pd
 from .base_model import BaseClassifier, BaseRegressor
 from .utils import f1_micro, f1_micro_lgb, binary_logloss, qwk_obj, quadratic_weighted_kappa
 
-
+# 未使用
 class XGBoostClassifier(BaseClassifier):
     def __init__(self, input_dim, output_dim, model_config, verbose, seed=None) -> None:
         super().__init__(input_dim, output_dim, model_config, verbose)
@@ -32,6 +32,7 @@ class XGBoostClassifier(BaseClassifier):
     def feature_importance(self):
         return self.model.feature_importances_
 
+# 未使用
 class LightGBMClassifier(BaseClassifier):
     def __init__(self, input_dim, output_dim, model_config, verbose, seed=None) -> None:
         super().__init__(input_dim, output_dim, model_config, verbose)
@@ -66,7 +67,7 @@ class XGBoostRegressor(BaseRegressor):
         super().__init__(input_dim, output_dim, model_config, verbose)
         self.model = xgb.XGBRegressor(
             # objective="reg:squarederror",  # 目的関数を回帰用に変更
-            objective=qwk_obj,
+            objective=qwk_obj,  #目的関数のカスタム
             **self.model_config,
             random_state=seed,
         )
@@ -85,7 +86,7 @@ class XGBoostRegressor(BaseRegressor):
             X,
             y,
             eval_set=eval_set,
-            eval_metric=quadratic_weighted_kappa,
+            eval_metric=quadratic_weighted_kappa,  #評価指標を指定
             callbacks=xgb_callbacks,
             verbose=0
         )
@@ -98,7 +99,7 @@ class LightGBMRegressor(BaseRegressor):
         super().__init__(input_dim, output_dim, model_config, verbose)
 
         self.model = lgb.LGBMRegressor(
-            objective=qwk_obj,
+            objective=qwk_obj,  #目的関数のカスタム
             # objective='regression',
             random_state=seed,
             **self.model_config,
@@ -115,7 +116,7 @@ class LightGBMRegressor(BaseRegressor):
             y,
             eval_names=['train', 'valid'],
             eval_set=eval_set,
-            eval_metric=quadratic_weighted_kappa, 
+            eval_metric=quadratic_weighted_kappa,   #評価指標を指定
             callbacks=[early_stopping(stopping_rounds=100)],
             # callbacks=[log_evaluation(period=100), early_stopping(stopping_rounds=75)],
         )
@@ -150,13 +151,9 @@ class CatBoostRegressor(BaseRegressor):
             early_stopping_rounds=75,
         )
 
-        # 最適なイテレーションを取得
-        best_iteration = self.model.get_best_iteration()
-        
-        # 最適なスコアを取得
-        best_score = self.model.get_best_score()
-
         # 結果を表示
+        best_iteration = self.model.get_best_iteration()
+        best_score = self.model.get_best_score()
         print(f"Best iteration: {best_iteration}")
         print(f"Best score: {best_score}")
 

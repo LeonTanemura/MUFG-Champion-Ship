@@ -20,8 +20,8 @@ def xgboost_config(trial: optuna.Trial, model_config, name=""):
     model_config.max_depth = trial.suggest_int("max_depth", 3, 10)
     model_config.learning_rate = trial.suggest_float("learning_rate", 1e-5, 1.0, log=True)
     model_config.colsample_bytree = trial.suggest_float("colsample_bytree", 0.1, 1.0)
+    model_config.colsample_bylevel = trial.suggest_float("colsample_bylevel", 0.1, 1.0)
     model_config.reg_alpha = trial.suggest_float("reg_alpha", 1e-8, 1.0, log=True)
-    model_config.reg_lambda = trial.suggest_float("reg_lambda", 1e-8, 1.0, log=True)
     model_config.n_estimators = trial.suggest_int("n_estimators", 100, 10000)
     return model_config
 
@@ -38,11 +38,7 @@ def lightgbm_config(trial: optuna.Trial, model_config, name=""):
 def catboost_config(trial: optuna.Trial, model_config, name=""):
     model_config.depth = trial.suggest_int("depth", 3, 10)
     model_config.learning_rate = trial.suggest_float("learning_rate", 1e-4, 1.0, log=True)
-    # model_config.l2_leaf_reg = trial.suggest_float("l2_leaf_reg", 1e-8, 10.0, log=True)
-    model_config.subsample = trial.suggest_float("subsample", 0.5, 1.0)
-    # model_config.colsample_bylevel = trial.suggest_float("colsample_bylevel", 0.1, 1.0)
-    # model_config.max_bin = trial.suggest_int("max_bin", 128, 512)
-    model_config.min_data_in_leaf = trial.suggest_int("min_data_in_leaf", 1, 20)
+    model_config.l2_leaf_reg = trial.suggest_float("l2_leaf_reg", 1e-8, 10.0, log=True)
     model_config.n_estimators = trial.suggest_int("n_estimators", 100, 5000)
     return model_config
 
@@ -51,8 +47,8 @@ def xgblgbm_config(trial: optuna.Trial, model_config, name=""):
     model_config.xgboost.max_depth = trial.suggest_int("xgboost_max_depth", 3, 10)
     model_config.xgboost.learning_rate = trial.suggest_float("xgboost_learning_rate", 1e-4, 1.0, log=True)
     model_config.xgboost.colsample_bytree = trial.suggest_float("xgboost_colsample_bytree", 0.1, 1.0)
+    model_config.xgboost.colsample_bylevel = trial.suggest_float("xgboost_colsample_bylevel", 0.1, 1.0)
     model_config.xgboost.reg_alpha = trial.suggest_float("xgboost_reg_alpha", 1e-8, 1.0, log=True)
-    model_config.xgboost.reg_lambda = trial.suggest_float("xgboost_reg_lambda", 1e-8, 1.0, log=True)
     model_config.xgboost.n_estimators = trial.suggest_int("xgboost_n_estimators", 100, 10000)
     
     # LightGBMのパラメータ設定
@@ -161,7 +157,6 @@ class OptimParam:
         model.fit(
             X_train,
             y_train,
-            # eval_set=(X_val, y_val),
             eval_set=[(X_train, y_train), (X_val, y_val)],
         )
         score = model.evaluate(
@@ -170,6 +165,7 @@ class OptimParam:
         )
         return score
 
+    # optuna内でCVの使用
     def cross_validation(self, model_config):
         skf = StratifiedKFold(n_splits=10, random_state=self.seed, shuffle=True)
         ave = []

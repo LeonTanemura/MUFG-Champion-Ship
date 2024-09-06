@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 class ExpBase:
     def __init__(self, config):
+        # seedの固定
         set_seed(config.seed)
 
         self.n_splits = config.n_splits
@@ -31,6 +32,7 @@ class ExpBase:
         self.exp_config = config.exp
         self.data_config = config.data
 
+        # train, testファイルの読み込み
         dataframe: TabularDataFrame = getattr(dataset, self.data_config.name)(seed=config.seed, **self.data_config)
         self.train, self.test = dataframe.train, dataframe.test
         self.columns = dataframe.selected_columns
@@ -48,17 +50,20 @@ class ExpBase:
         self.save_model = config.save_model
         self.save_predict = config.save_predict
         self.existing_models = config.existing_models
+        self.thresholds = config.thresholds
 
-        self.a = 0,
-        self.b = 0,
-
+    # 評価指標
     def init_writer(self):
         metrics = [
             "fold",
+            "MSE",
+            "MAE",
+            "RMSE",
             "QWK",
         ]
         self.writer = {m: [] for m in metrics}
 
+    # 予測評価値の追加
     def add_results(self, i_fold, scores: dict, time):
         self.writer["fold"].append(i_fold)
         for m in self.writer.keys():
@@ -66,6 +71,7 @@ class ExpBase:
                 continue
             self.writer[m].append(scores[m])
 
+    # CV内で各モデルの作成
     def each_fold(self, i_fold, train_data, val_data):
         x, y = self.get_x_y(train_data)
 
@@ -89,9 +95,11 @@ class ExpBase:
         logger.info(f"[Fit {self.model_name}] Time: {end}")
         return model, end
 
+    # 実行の基盤
     def run(self):
         skf = StratifiedKFold(n_splits=self.n_splits, shuffle=True, random_state=self.seed)
         score_all = []
+        # 作成済みモデルの使用（特殊なアンサンブルも実行）
         if self.existing_models:
             model_filename = "/home/leon/study/mydir/MUFG-Champion-Ship/outputs/single/main/V2/2024-08-31/15-52-41/lightgbm.pkl"
             with open(model_filename, 'rb') as f:
@@ -102,15 +110,18 @@ class ExpBase:
             ex_score_all = []
         models = []
         image_list = []
+        # CVの実行
         for i_fold, (train_idx, val_idx) in enumerate(skf.split(self.train, self.train[self.target_column])):
             if len(self.writer["fold"]) != 0 and self.writer["fold"][-1] >= i_fold:
                 logger.info(f"Skip {i_fold + 1} fold. Already finished.")
                 continue
 
             train_data, val_data = self.train.iloc[train_idx], self.train.iloc[val_idx]
+            # モデルの作成、追加
             model, time = self.each_fold(i_fold, train_data, val_data)
             models.append(model)
 
+            # 各評価指標の値を算出
             score = cal_metrics_regression(model, val_data, self.columns, self.target_column)
             score.update(model.evaluate(val_data[self.columns], val_data[self.target_column].values.squeeze()))
             score_all.append(score)
@@ -120,11 +131,12 @@ class ExpBase:
             )
             self.add_results(i_fold, score, time)
 
-            # コンフュージョンマトリックスを計算してグラフを表示
+            # confusion_matrixを計算してグラフを作成
             x_val, y_val = self.get_x_y(val_data)
             img = plot_confusion_matrix(model, x_val, y_val, i_fold)
             image_list.append(img)
 
+            # 作成済みモデルの各評価指標の値を算出
             if self.existing_models:
                 ex_score = cal_metrics_regression(ex_models1[i_fold], val_data, self.columns, self.target_column)
                 ex_score.update(ex_models1[i_fold].evaluate(val_data[self.columns], val_data[self.target_column].values.squeeze()))
@@ -133,19 +145,21 @@ class ExpBase:
                 ex_score.update(ex_models2[i_fold].evaluate(val_data[self.columns], val_data[self.target_column].values.squeeze()))
                 ex_score_all.append(ex_score)
 
+        # 各foldのconfusion_matrixの合成
         concatenated_img = concatenate_images(image_list)
         if concatenated_img:
             concatenated_img.save('concatenated_confusion_matrices.png')
 
+        # 各評価指標の平均値を算出
         final_score = Counter()
         for item in score_all:
             final_score.update(item)
-
         logger.info(
                 f"[{self.model_name} results] MSE: {(final_score['MSE']/self.n_splits)} | MAE: {(final_score['MAE']/self.n_splits)} | "
                 f"RMSE: {(final_score['RMSE']/self.n_splits)} | QWK: {(final_score['QWK']/self.n_splits)}"
             )
 
+        # 作成済みモデルを組み合わせた各評価指標の平均値を算出
         if self.existing_models:
             for item in ex_score_all:
                 final_score.update(item)
@@ -159,36 +173,35 @@ class ExpBase:
             for model in ex_models2:
                 models.append(model)
 
+        # 各モデルの予測値を算出
         probabilities = []
         for model in models:
-            proba= model.predict(self.test[self.columns])
-            proba += self.a  # 必要に応じて調整
+            proba = model.predict(self.test[self.columns])
             print(proba)
             probabilities.append(proba)
-
         predictions = np.mean(probabilities, axis=0)
         logger.info(f"predictions: {predictions}")
-        thresholds=[0.65, 1.5, 2.5, 3.5]
-        predictions = pd.cut(predictions, [-np.inf] + thresholds + [np.inf], 
-                    labels=[0,1,2,3,4]).astype('int32')
 
+        # 予測結果の保存
         if self.save_predict:
             pred = pd.DataFrame(predictions)
             pred.to_csv(f"{self.model_name}_pred.csv", index=False)
-
+        # モデルの保存
         if self.save_model:
             model_filename = f"{self.model_name}.pkl"
             with open(model_filename, 'wb') as f:
                 pickle.dump(models, f)
 
-        predictions = np.round(predictions.clip(0, 4)).astype(int)
+        # 閾値を用いて予測結果を整数化
+        predictions = pd.cut(predictions, [-np.inf] + self.thresholds + [np.inf], 
+                    labels=[0,1,2,3,4]).astype('int32')
         print(predictions)
 
+        # 提出ファイルの作成
         submit_df = pd.DataFrame(self.id)
         submit_df["score"] = predictions
         print(submit_df)
         print(self.train.columns)
-        # self.train.to_csv("train_feature.csv", index=False)
         submit_df.to_csv("submission.csv", index=False, header=False)
 
     def get_model_config(self, *args, **kwargs):
@@ -198,7 +211,7 @@ class ExpBase:
         x, y = train_data[self.columns], train_data[self.target_column].values.squeeze()
         return x, y
 
-
+# パラメータ探索をしない場合
 class ExpSimple(ExpBase):
     def __init__(self, config):
         super().__init__(config)
@@ -206,7 +219,7 @@ class ExpSimple(ExpBase):
     def get_model_config(self, *args, **kwargs):
         return self.model_config
 
-
+# パラメータ探索をする場合
 class ExpOptuna(ExpBase):
     def __init__(self, config):
         super().__init__(config)

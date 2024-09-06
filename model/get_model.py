@@ -1,7 +1,7 @@
 from experiment.utils import set_seed
 
 from .gbm import LightGBMClassifier, XGBoostClassifier, LightGBMRegressor, XGBoostRegressor, CatBoostRegressor
-from .ensemble import XGBLGBMRegressor
+from .ensemble import XGBLGBMRegressor, XGBLGBMCATRegressor
 
 
 def get_classifier(name, *, input_dim, output_dim, model_config, seed=42, verbose=0):
@@ -13,6 +13,7 @@ def get_classifier(name, *, input_dim, output_dim, model_config, seed=42, verbos
     else:
         raise KeyError(f"{name} is not defined.")
 
+# yamlファイルで指定された名前から使用するモデルの呼び出し
 def get_regressor(name, *, input_dim, output_dim, model_config, seed=42, verbose=0):
     set_seed(seed=seed)
     if name == "xgboost":
@@ -23,5 +24,7 @@ def get_regressor(name, *, input_dim, output_dim, model_config, seed=42, verbose
         return CatBoostRegressor(input_dim, output_dim, model_config, verbose, seed)
     elif name == "xgblgbm":
         return XGBLGBMRegressor(input_dim, output_dim, model_config, verbose, seed)
+    elif name == "xgblgbmcat":
+        return XGBLGBMCATRegressor(input_dim, output_dim, model_config, verbose, seed)
     else:
         raise KeyError(f"{name} is not defined.")

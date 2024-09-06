@@ -16,3 +16,9 @@ lightgbm:
   reg_lambda: 0.0001
   n_estimators: 2000
   verbosity: -1
+
+catboost:
+  learning_rate: 0.05
+  depth: 7
+  n_estimators: 2000
+  l2_leaf_reg: 4

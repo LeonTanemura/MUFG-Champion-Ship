@@ -1,1 +1,1 @@
-from .xgb_lgbm import XGBLGBMRegressor
+from .ensemble import XGBLGBMRegressor, XGBLGBMCATRegressor

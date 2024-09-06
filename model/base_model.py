@@ -10,7 +10,8 @@ from sklearn.metrics import (
 )
 import numpy as np
 import pandas as pd
-
+from omegaconf import OmegaConf
+import os
 
 class BaseClassifier:
     def __init__(self, input_dim, output_dim, model_config, verbose) -> None:
@@ -60,22 +61,21 @@ class BaseRegressor:
         return self.model.predict(X.values)
 
     def evaluate(self, X, y):
+        # thresholds を取得
+        config_path = os.path.join(os.path.dirname(__file__), '..', 'conf', 'main.yaml')
+        config = OmegaConf.load(config_path)
+        thresholds = config.thresholds
+
         y_pred = self.predict(X)
         results = {}
+        # 各評価指標の値を算出
         mse = mean_squared_error(y, y_pred)
         results["MSE"] = mse
         results["MAE"] = mean_absolute_error(y, y_pred)
         results["RMSE"] = np.sqrt(mse)
-        # y_pred_rounded = np.round(y_pred).astype(int)
-        # y_rounded = np.round(y).astype(int)
-        # results["QWK"] = cohen_kappa_score(y_rounded, y_pred_rounded, weights='quadratic')
-        # 回帰モデルの予測値を整数ラベルに変換
-        thresholds=[0.65, 1.5, 2.5, 3.5]
-        pred_labels = pd.cut(y_pred, bins=[-np.inf] + thresholds + [np.inf], 
+        y_pred = pd.cut(y_pred, bins=[-np.inf] + thresholds + [np.inf], 
                              labels=[0, 1, 2, 3, 4]).astype(int)
-        
-        true_labels = y.astype(int)
-        results["QWK"] = cohen_kappa_score(true_labels, pred_labels, weights='quadratic')
+        results["QWK"] = cohen_kappa_score(y, y_pred, weights='quadratic')
         return results
 
     def feature_importance(self):

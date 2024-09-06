@@ -82,11 +82,13 @@ class V1(TabularDataFrame):
         print(self.train.info())
         self.selected_columns = list(filter(lambda x: x not in ['Unnamed: 0','review', 'score', 'replyContent'], self.train.columns))
 
+# 最終的に使用したもの
 class V2(TabularDataFrame):
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
-        self.train = pd.read_csv(to_absolute_path("datasets/train_fix17.csv"))
-        self.test = pd.read_csv(to_absolute_path("datasets/test_fix17.csv"))
+        self.train = pd.read_csv(to_absolute_path("datasets/train_fix_final.csv"))
+        self.test = pd.read_csv(to_absolute_path("datasets/test_fix_final.csv"))
         print(self.train.info())
+        # 使用する特徴量
         self.selected_columns = list(filter(lambda x: x not in ['Unnamed: 0','review', 'score', 'replyContent'], self.train.columns))
