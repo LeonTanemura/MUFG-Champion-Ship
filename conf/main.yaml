@@ -8,14 +8,15 @@ hydra:
 defaults:
   - _self_
   - data: base
-  - model: xgboost
+  - model: xgblgbmcat
   - exp: simple
 
-n_splits: 10
+n_splits: 15
 metrics: QWK
 
 seed: 42
 gpuid: 0
 save_model: True
 save_predict: True
-existing_models: True
+existing_models: false
+thresholds: [0.63, 1.39, 2.39, 3.55]

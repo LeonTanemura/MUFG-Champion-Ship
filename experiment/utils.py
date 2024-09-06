@@ -13,9 +13,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from PIL import Image
 import io
-
-# グローバル閾値の定義
-THRESHOLDS = [0.65, 1.5, 2.5, 3.5]
+from omegaconf import OmegaConf
 
 def set_seed(seed: int = 42):
     random.seed(seed)
@@ -74,16 +72,17 @@ def cal_mae_score(model, data, feature_cols, label_col):
     return mae
 
 def cal_qwk_score(model, data, feature_cols, label_col):
+    # thresholds を取得
+    config_path = os.path.join(os.path.dirname(__file__), '..', 'conf', 'main.yaml')
+    config = OmegaConf.load(config_path)
+    thresholds = config.thresholds
     pred = model.predict(data[feature_cols])
-    pred_labels = pd.cut(pred, bins=[-np.inf] + THRESHOLDS + [np.inf], 
+    pred = pd.cut(pred, bins=[-np.inf] + thresholds + [np.inf], 
                          labels=[0, 1, 2, 3, 4]).astype('int32')
-    
-    true_labels = data[label_col].values.astype(int)
-    
-    # QWKの計算
-    qwk = cohen_kappa_score(true_labels, pred_labels, weights='quadratic')
+    qwk = cohen_kappa_score(data[label_col], pred, weights='quadratic')
     return qwk
 
+# 各評価指標の値を算出
 def cal_metrics_regression(model, data, feature_cols, label_col):
     mse = cal_mse_score(model, data, feature_cols, label_col)
     mae = cal_mae_score(model, data, feature_cols, label_col)
@@ -94,16 +93,17 @@ def cal_metrics_regression(model, data, feature_cols, label_col):
 def set_categories_in_rule(ruleset, categories_dict):
     ruleset.set_categories(categories_dict)
 
+# confusion_matrixの作成
 def plot_confusion_matrix(model, x_val, y_val, i_fold):
-    # 予測を取得
+    # thresholds を取得
+    config_path = os.path.join(os.path.dirname(__file__), '..', 'conf', 'main.yaml')
+    config = OmegaConf.load(config_path)
+    thresholds = config.thresholds
     y_pred = model.predict(x_val)
-    # 閾値に基づいて予測ラベルを変換
-    pred_labels = pd.cut(y_pred, bins=[-np.inf] + THRESHOLDS + [np.inf], 
+    y_pred = pd.cut(y_pred, bins=[-np.inf] + thresholds + [np.inf], 
                          labels=[0, 1, 2, 3, 4]).astype('int32')
-    # 実際のラベル
-    true_labels = y_val.astype(int)
     # 混同行列の計算
-    cm = confusion_matrix(true_labels, pred_labels, labels=[0, 1, 2, 3, 4])
+    cm = confusion_matrix(y_val, y_pred, labels=[0, 1, 2, 3, 4])
     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=[0, 1, 2, 3, 4])
     # グラフの作成
     fig, ax = plt.subplots()
@@ -117,6 +117,7 @@ def plot_confusion_matrix(model, x_val, y_val, i_fold):
     
     return Image.open(buf)
 
+# confusion_matrixの合成
 def concatenate_images(image_list):
     # 画像リストが空の場合は処理を終了
     if not image_list:
