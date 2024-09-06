@@ -7,7 +7,7 @@
 .python-version
 outputs/
 .vscode
-datasets/
+# datasets/
 !data/datasets
 
 ### Python ###
