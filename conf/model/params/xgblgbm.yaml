@@ -1,23 +1,18 @@
 xgboost:
-  learning_rate: null
-  max_depth: null
-  colsample_bytree: null
-  reg_alpha: null
-  reg_lambda: null
-  n_estimators: 10000
-  # extra_trees: null
-  scale_pos_weight: null
-  # class_weight: null
-  tree_method: "hist"
+  learning_rate: 0.1
+  max_depth: 4
+  colsample_bytree: 0.65
+  colsample_bylevel: 0.65
+  reg_alpha: 0.0007
+  n_estimators: 2000
+
 
 lightgbm:
-  learning_rate: null
-  max_depth: null
-  num_leaves: null
-  colsample_bytree: null
-  reg_alpha: null
-  reg_lambda: null
-  n_estimators: 10000
-  extra_trees: True
-  class_weight: 'balanced'
+  learning_rate: 0.1
+  max_depth: 9
+  num_leaves: 10
+  colsample_bytree: 0.75
+  reg_alpha: 0.0001
+  reg_lambda: 0.0001
+  n_estimators: 2000
   verbosity: -1

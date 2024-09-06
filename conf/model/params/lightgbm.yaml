@@ -1,33 +1,8 @@
-# n_estimators: 10000
-# max_depth: null
-# num_leaves: null
-# learning_rate: null
-# lambda_l1: null
-# lambda_l2: null
-# feature_fraction: null
-# bagging_fraction: null
-# bagging_freq: null
-# min_child_samples: null
-# min_data_in_leaf: null
-
-# learning_rate: 0.05
-# max_depth: 8
-# num_leaves: 10
-# colsample_bytree: 0.3
-# reg_alpha: 0.7
-# reg_lambda: 0.1
-# n_estimators: 700
-# extra_trees: True
-# class_weight: 'balanced'
-# verbosity: -1
-
-learning_rate: null
-max_depth: null
-num_leaves: null
-colsample_bytree: null
-reg_alpha: null
-reg_lambda: null
-n_estimators: 10000
-extra_trees: True
-class_weight: 'balanced'
+learning_rate: 0.1
+max_depth: 9
+num_leaves: 10
+colsample_bytree: 0.75
+reg_alpha: 0.0001
+reg_lambda: 0.0001
+n_estimators: 2000
 verbosity: -1
