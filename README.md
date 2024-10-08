@@ -1,7 +1,13 @@
 # MUFG Data Science Champion Ship 2024
 Signateのコンペティションで1位に入賞したときのコードです。
 
-🔗
+https://signate.jp/competitions/1413
+
+## 環境設定
+- python 3.10.6
+
+poetryで管理してるので，以下でパッケージをインストールする．
+```bash
 poetry install
 ```
 
@@ -20,4 +26,3 @@ python preprocess.py
 ```bash
 python main.py
 ```
-・main.pyを実行する。ここで他のファイルも呼び出され、モデルの学習と予測を行うため、実行は以上である。
