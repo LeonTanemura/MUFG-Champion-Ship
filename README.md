@@ -1,5 +1,6 @@
 # MUFG Data Science Champion Ship 2024
-Signateのコンペティションで1位に入賞したときのコードです。[🔗](https://signate.jp/competitions/1413)
+Signateのコンペティションで1位に入賞したときのコードです。
+:link: https://signate.jp/competitions/1413
 
 ## 環境設定
 - python 3.10.6
